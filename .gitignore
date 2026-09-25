@@ -216,3 +216,27 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ==============================
+# Project / Hackathon Security
+# ==============================
+
+# Environment files and secrets
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Local IDE / OS files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Temporary repository analysis files
+temp/
+tmp/
