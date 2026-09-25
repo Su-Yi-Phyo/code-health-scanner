@@ -1,0 +1,33 @@
+# Dependencies and generated files
+node_modules/
+.next/
+__pycache__/
+*.pyc
+
+# Environment files and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Python environments
+.venv/
+venv/
+env/
+
+# Build and cache files
+dist/
+build/
+coverage/
+.pytest_cache/
+.ruff_cache/
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+temp/
+tmp/
