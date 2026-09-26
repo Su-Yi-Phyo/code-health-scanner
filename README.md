@@ -10,7 +10,8 @@ A **multi-language code health scanner** that analyzes public GitHub repositorie
 - **Duplication detection** — hash-based sliding-window algorithm flags duplicate code blocks across the repository
 - **Dead code detection** — tree-sitter AST analysis identifies functions and classes never referenced elsewhere
 - **Risk scoring** — each file receives a 0–100 risk score; scores roll up to folder and repository level
-- **REST API** — FastAPI backend with a single `POST /analyze` endpoint; returns structured JSON
+- **AI explanation agent** — `POST /explain` fetches any file and returns a plain-language explanation + refactoring suggestions powered by `Qwen2.5-7B-Instruct` via the Hugging Face free Inference API
+- **REST API** — FastAPI backend with `POST /analyze` and `POST /explain` endpoints; returns structured JSON
 - **Interactive Swagger UI** — built-in API docs at `/docs`
 
 ---
@@ -38,15 +39,16 @@ Folder and repository scores are the mean of all file scores within them.
 
 ```
 code-health-scanner/
+├── .env                                    ← secrets (gitignored) — put HF_API_TOKEN here
 ├── backend/
 │   ├── requirements.txt
 │   └── app/
-│       ├── main.py                         ← FastAPI entry point (canonical)
+│       ├── main.py                         ← FastAPI entry point — all routes
+│       ├── ai_agent/
+│       │   └── explainer.py               ← AI explanation agent (POST /explain)
 │       ├── analysis/
-│       │   ├── github.py                   ← GitHub URL validation + repo download
+│       │   ├── github.py                   ← GitHub URL validation, repo download, raw file fetch
 │       │   ├── scanner.py                  ← Multi-language file discovery
-│       │   ├── ast_analyzer.py             ← Compat shim (delegates to scoring_agent)
-│       │   ├── main.py                     ← Legacy re-export alias
 │       │   └── test_*.py                   ← Unit + integration tests
 │       └── scoring_agent/
 │           ├── parser.py                   ← Universal tree-sitter parser layer
@@ -75,28 +77,46 @@ code-health-scanner/
 pip install -r backend/requirements.txt
 ```
 
-### 2. Run unit tests
+### 2. Configure environment
+
+Create a `.env` file in the project root (already gitignored):
+
+```
+HF_API_TOKEN=hf_your_token_here
+```
+
+Get a free token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) — read access is enough.
+The server works without it, but `POST /explain` will return a graceful unavailable message.
+
+### 3. Run unit tests
 
 ```bash
 python backend/app/scoring_agent/test_scoring_agent.py
 ```
 
-### 3. Start the API server
+### 4. Start the API server
 
 ```bash
 cd backend/app
-uvicorn main:app --reload --port 8000
+python -m uvicorn main:app --reload --port 8000
 ```
 
-### 4. Analyze a repository
+### 5. Use the API
 
-**Swagger UI** — open [http://localhost:8000/docs](http://localhost:8000/docs) in your browser.
+**Swagger UI** — open [http://localhost:8000/docs](http://localhost:8000/docs) in your browser for an interactive interface to both endpoints.
 
-**curl:**
+**Step 1 — Analyze a repository:**
 ```bash
 curl -X POST http://localhost:8000/analyze \
   -H "Content-Type: application/json" \
   -d '{"repositoryUrl": "https://github.com/psf/requests"}'
+```
+
+**Step 2 — Explain a high-risk file** (use `repositoryUrl` + `file_path` from the analyze response):
+```bash
+curl -X POST http://localhost:8000/explain \
+  -H "Content-Type: application/json" \
+  -d '{"repositoryUrl": "https://github.com/psf/requests", "file_path": "src/requests/utils.py"}'
 ```
 
 ---
@@ -161,8 +181,56 @@ Health check. Returns `{"message": "Code Health Scanner is running"}`.
 
 ---
 
+### `POST /explain`
+
+Fetches a single file from GitHub and returns an AI-generated plain-language explanation
+of its code quality issues plus concrete refactoring suggestions.
+
+The caller provides only `repositoryUrl` and `file_path` — both are already present in the
+`POST /analyze` response. The backend re-fetches just that one file via GitHub's raw content
+API and calls **`Qwen/Qwen2.5-7B-Instruct`** via the Hugging Face free Inference API.
+
+Requires `HF_API_TOKEN` in your `.env` file. Returns 200 with a graceful message when unset.
+
+**Request body:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `repositoryUrl` | string | Same GitHub URL used in `/analyze` |
+| `file_path` | string | Relative file path from the `/analyze` response, e.g. `"src/requests/utils.py"` |
+
+**curl:**
+```bash
+curl -X POST http://localhost:8000/explain \
+  -H "Content-Type: application/json" \
+  -d '{"repositoryUrl": "https://github.com/psf/requests", "file_path": "src/requests/utils.py"}'
+```
+
+**Response:**
+```json
+{
+  "file_path": "src/requests/utils.py",
+  "explanation": "This file contains several utility functions with some code quality concerns. There are unused imports that add unnecessary complexity, and a few helper functions that appear unreferenced elsewhere in the codebase.",
+  "suggestions": [
+    "Remove unused imports to reduce noise and improve readability.",
+    "Extract repeated logic into a shared helper to eliminate duplication.",
+    "Add docstrings to public functions to clarify intent for future maintainers."
+  ],
+  "model_used": "Hugging Face / Qwen/Qwen2.5-7B-Instruct"
+}
+```
+
+**Error responses:**
+| Status | Reason |
+|--------|--------|
+| `404` | `file_path` not found in the repository |
+| `422` | Invalid or non-GitHub URL |
+| `500` | File fetch failure or unexpected error |
+
+---
+
 ## Requirements
 
 - Python 3.11+
 - Internet access (downloads the target repository from GitHub)
-- Dependencies: `fastapi`, `uvicorn`, `httpx`, `tree-sitter>=0.22`, and individual `tree-sitter-*` language packages (see `requirements.txt`)
+- Dependencies: see `backend/requirements.txt` — `fastapi`, `uvicorn`, `httpx`, `python-dotenv`, `huggingface_hub`, `tree-sitter>=0.22`, and individual `tree-sitter-*` language packages
+- **`HF_API_TOKEN`** in `.env` — free Hugging Face token for `POST /explain` ([get one here](https://huggingface.co/settings/tokens)); server runs without it but `/explain` returns a graceful unavailable message

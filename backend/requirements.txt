@@ -1,6 +1,7 @@
 fastapi
 uvicorn[standard]
 httpx
+python-dotenv
 tree-sitter>=0.22
 tree-sitter-python
 tree-sitter-javascript
@@ -17,3 +18,4 @@ tree-sitter-bash
 tree-sitter-json
 tree-sitter-yaml
 tree-sitter-toml
+huggingface_hub

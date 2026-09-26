@@ -1,6 +1,7 @@
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 import json
 import tempfile
 import zipfile
@@ -78,3 +79,36 @@ def download_repository(repository_url: str) -> str:
     zip_path.unlink()
 
     return str(extract_dir)
+
+
+def fetch_raw_file(repository_url: str, file_path: str) -> str:
+    """
+    Fetch the raw content of a single file from a public GitHub repository.
+
+    Uses GitHub's raw content API:
+        https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{file_path}
+
+    Returns:
+        The file content as a UTF-8 string.
+
+    Raises:
+        ValueError: If the repository URL is invalid.
+        FileNotFoundError: If the file path does not exist in the repository.
+    """
+
+    owner, repo = validate_github_url(repository_url)
+    branch = get_default_branch(owner, repo)
+
+    raw_url = (
+        f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{file_path}"
+    )
+
+    request = Request(raw_url, headers={"User-Agent": "Code-Health-Scanner"})
+
+    try:
+        with urlopen(request, timeout=20) as response:
+            return response.read().decode("utf-8", errors="replace")
+    except HTTPError as exc:
+        if exc.code == 404:
+            raise FileNotFoundError(f"File not found in repo: {file_path}") from exc
+        raise
