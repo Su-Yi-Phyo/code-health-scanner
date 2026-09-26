@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { FileRecord } from "@/lib/mockData";
 import { scoreToLevel, getRiskColor } from "@/lib/mockData";
 import RiskBadge from "./RiskBadge";
@@ -22,6 +25,42 @@ const LANG_COLORS: Record<string, string> = {
 
 function langColor(lang: string): string {
   return LANG_COLORS[lang] ?? LANG_COLORS.default;
+}
+
+const INITIAL_SHOWN = 5;
+
+interface IssueListProps {
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}
+
+function CollapsibleIssueList({ label, count, children }: IssueListProps) {
+  const [expanded, setExpanded] = useState(false);
+  const items = Array.isArray(children)
+    ? (children as React.ReactNode[])
+    : [children];
+  const visible = expanded ? items : items.slice(0, INITIAL_SHOWN);
+
+  return (
+    <div>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600 mb-2">
+        {label} ({count})
+      </p>
+      <div className="flex flex-col gap-2">{visible}</div>
+      {count > INITIAL_SHOWN && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 w-full rounded-md border border-slate-700/50 py-1.5 font-mono text-[11px] text-slate-500 transition hover:border-slate-600 hover:text-slate-300"
+        >
+          {expanded
+            ? "Show less"
+            : `Show all ${count} issues \u25be`}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function FileDetail({ file }: FileDetailProps) {
@@ -139,30 +178,26 @@ export default function FileDetail({ file }: FileDetailProps) {
           <div className="flex flex-col gap-4">
             {/* Duplicate issues */}
             {file.issues.duplicates.length > 0 && (
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600 mb-2">
-                  Duplicate Code Issues ({file.issues.duplicates.length})
-                </p>
-                <div className="flex flex-col gap-2">
-                  {file.issues.duplicates.map((issue, i) => (
-                    <DuplicateIssueCard key={i} issue={issue} />
-                  ))}
-                </div>
-              </div>
+              <CollapsibleIssueList
+                label="Duplicate Code Issues"
+                count={file.issues.duplicates.length}
+              >
+                {file.issues.duplicates.map((issue, i) => (
+                  <DuplicateIssueCard key={i} issue={issue} />
+                ))}
+              </CollapsibleIssueList>
             )}
 
             {/* Dead code issues */}
             {file.issues.dead_code.length > 0 && (
-              <div>
-                <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600 mb-2">
-                  Dead Code Issues ({file.issues.dead_code.length})
-                </p>
-                <div className="flex flex-col gap-2">
-                  {file.issues.dead_code.map((issue, i) => (
-                    <DeadCodeIssueCard key={i} issue={issue} />
-                  ))}
-                </div>
-              </div>
+              <CollapsibleIssueList
+                label="Dead Code Issues"
+                count={file.issues.dead_code.length}
+              >
+                {file.issues.dead_code.map((issue, i) => (
+                  <DeadCodeIssueCard key={i} issue={issue} />
+                ))}
+              </CollapsibleIssueList>
             )}
           </div>
         )}

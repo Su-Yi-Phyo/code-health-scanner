@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ScannerHero from "@/components/ScannerHero";
 import RepositoryOverview from "@/components/RepositoryOverview";
 import RepositoryExplorer from "@/components/RepositoryExplorer";
@@ -33,11 +33,13 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [aiExplanation, setAiExplanation] = useState<ExplainResponse | null>(null);
   const [isExplaining, setIsExplaining] = useState(false);
-  const [explainError, setExplainError] =
-    useState<string | null>(null);
+  const [explainError, setExplainError] = useState<string | null>(null);
   const [showBobModal, setShowBobModal] = useState(false);
-const [bobPrompt, setBobPrompt] = useState("");
-const [bobPromptCopied, setBobPromptCopied] = useState(false);
+  const [bobPrompt, setBobPrompt] = useState("");
+  const [bobPromptCopied, setBobPromptCopied] = useState(false);
+
+  // Ref for the selected-file analysis panel so we can scroll to it
+  const fileDetailRef = useRef<HTMLDivElement>(null);
 
   async function handleScan(url: string) {
     setSelectedFile(null);
@@ -71,48 +73,46 @@ const [bobPromptCopied, setBobPromptCopied] = useState(false);
   }
 
   async function handleSelectFile(file: FileRecord) {
-  // Clicking the selected file again closes it.
-  if (selectedFile?.id === file.id) {
-    setSelectedFile(null);
+    // Clicking the selected file again closes it.
+    if (selectedFile?.id === file.id) {
+      setSelectedFile(null);
+      setAiExplanation(null);
+      setExplainError(null);
+      return;
+    }
+
+    setSelectedFile(file);
     setAiExplanation(null);
     setExplainError(null);
-    return;
+
+    // Scroll to the file-detail panel smoothly
+    requestAnimationFrame(() => {
+      fileDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    if (!result) return;
+
+    setIsExplaining(true);
+
+    try {
+      const explanation = await explainFile(result.repositoryUrl, file.file_path);
+      setAiExplanation(explanation);
+    } catch (err: unknown) {
+      setExplainError(
+        err instanceof Error ? err.message : "Unable to generate AI explanation."
+      );
+    } finally {
+      setIsExplaining(false);
+    }
   }
 
-  setSelectedFile(file);
-  setAiExplanation(null);
-  setExplainError(null);
+  function handleDeepAnalyze() {
+    if (!selectedFile || !result) return;
 
-  if (!result) return;
+    const duplicateCount = selectedFile.issues.duplicates.length;
+    const deadCodeCount = selectedFile.issues.dead_code.length;
 
-  setIsExplaining(true);
-
-  try {
-    const explanation = await explainFile(
-      result.repositoryUrl,
-      file.file_path
-    );
-
-    setAiExplanation(explanation);
-  } catch (err: unknown) {
-    setExplainError(
-      err instanceof Error
-        ? err.message
-        : "Unable to generate AI explanation."
-    );
-  } finally {
-    setIsExplaining(false);
-  }
-}
-
-
-function handleDeepAnalyze() {
-  if (!selectedFile || !result) return;
-
-  const duplicateCount = selectedFile.issues.duplicates.length;
-  const deadCodeCount = selectedFile.issues.dead_code.length;
-
-  const prompt = `Please analyze this file more deeply in the context of the full repository.
+    const prompt = `Please analyze this file more deeply in the context of the full repository.
 
     Repository: ${result.repositoryUrl}
     File: ${selectedFile.file_path}
@@ -125,19 +125,19 @@ function handleDeepAnalyze() {
 
     Please inspect this file and its related files in the repository. Explain why these issues matter, identify relevant dependencies or architectural problems, and recommend a safe refactoring approach.`;
 
-      setBobPrompt(prompt);
-      setBobPromptCopied(false);
-      setShowBobModal(true);
-    }
+    setBobPrompt(prompt);
+    setBobPromptCopied(false);
+    setShowBobModal(true);
+  }
 
-    async function handleCopyBobPrompt() {
-      try {
-        await navigator.clipboard.writeText(bobPrompt);
-        setBobPromptCopied(true);
-      } catch {
-        alert("Unable to copy the Bob prompt.");
-      }
+  async function handleCopyBobPrompt() {
+    try {
+      await navigator.clipboard.writeText(bobPrompt);
+      setBobPromptCopied(true);
+    } catch {
+      alert("Unable to copy the Bob prompt.");
     }
+  }
 
   const isDone = scanState === "done";
   const isScanning = scanState === "scanning";
@@ -167,7 +167,7 @@ function handleDeepAnalyze() {
           {isScanning && (
             <span className="flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/5 px-3 py-1 font-mono text-xs text-indigo-400">
               <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
-              Scanning…
+              Scanning&hellip;
             </span>
           )}
           <span className="font-mono text-xs text-slate-700">v0.2.0</span>
@@ -198,7 +198,7 @@ function handleDeepAnalyze() {
         {isScanning && (
           <div className="mx-auto mb-12 max-w-xl rounded-xl border border-slate-700/50 bg-slate-900/60 p-6">
             <div className="mb-3 flex items-center justify-between">
-              <span className="font-mono text-xs text-slate-400">Analyzing repository…</span>
+              <span className="font-mono text-xs text-slate-400">Analyzing repository&hellip;</span>
               <svg className="h-3 w-3 animate-spin text-indigo-400" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a10 10 0 100 10z" />
@@ -232,107 +232,105 @@ function handleDeepAnalyze() {
         {isDone && result && (
           <div className="flex flex-col gap-10">
 
-            {/* Repository overview */}
+            {/* 1. Repository summary */}
             <section>
               <RepositoryOverview result={result} />
             </section>
 
-            {/* Explorer + File detail — side by side on desktop */}
-            <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-              <div className="xl:col-span-2">
-                <RepositoryExplorer
-                  result={result}
-                  onSelectFile={handleSelectFile}
-                  selectedId={selectedFile?.id ?? null}
-                />
-              </div>
-              <div>
-                <div className="mb-4">
-                  <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
-                    File Detail
-                  </h2>
-                </div>
-                <FileDetail file={selectedFile} />
-                {selectedFile && (
-  <div className="mt-4 rounded-xl border border-indigo-500/20 bg-slate-900/60 p-5">
-    <div className="mb-4">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-indigo-400">
-        Code Health Explanation
-      </p>
-      <p className="mt-1 text-xs text-slate-600">
-        Quick AI explanation powered by IBM Bob
-      </p>
-    </div>
-
-    <div className="text-sm leading-6 text-slate-300">
-  {isExplaining && (
-    <div className="flex items-center gap-2 text-indigo-300">
-      <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-400" />
-      IBM Bob is analyzing this file...
-    </div>
-  )}
-
-  {explainError && (
-    <p className="text-red-400">
-      {explainError}
-    </p>
-  )}
-
-  {!isExplaining && !explainError && aiExplanation && (
-    <div className="space-y-2">
-      {aiExplanation.explanation
-        .split(/\n+/)
-        .filter((line) => line.trim())
-        .slice(0, 5)
-        .map((line, index) => (
-          <p key={index}>
-            • {line.replace(/^[-•*]\s*/, "")}
-          </p>
-        ))}
-    </div>
-  )}
-</div>
-
-    <div className="mt-5 border-t border-slate-800 pt-4">
-      <p className="mb-3 text-xs text-slate-500">
-        Need a deeper investigation or help refactoring this code?
-      </p>
-
-      <button
-        type="button"
-        onClick={handleDeepAnalyze}
-        className="w-full rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-4 py-2.5 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/20"
-      >
-        Analyze deeper with IBM Bob →
-      </button>
-    </div>
-  </div>
-)}
-                              </div>
+            {/* 2. Codebase Explorer — full width */}
+            <section>
+              <RepositoryExplorer
+                result={result}
+                onSelectFile={handleSelectFile}
+                selectedId={selectedFile?.id ?? null}
+              />
             </section>
 
-            {/* Priority targets + File detail — for quick mission view */}
-            <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div>
-                <PriorityFiles
-                  files={result.files}
-                  onSelect={handleSelectFile}
-                  selectedId={selectedFile?.id ?? null}
-                />
-              </div>
-              <div>
-                {/* File detail repeats here so it stays next to priority list on tablet */}
-                <div className="mb-4 lg:hidden">
-                  <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
-                    File Detail
-                  </h2>
+            {/* 3. Selected file analysis (overview + IBM Bob + issues) */}
+            <section ref={fileDetailRef}>
+              {selectedFile ? (
+                <div className="flex flex-col gap-5">
+                  {/* Section label */}
+                  <div className="flex items-center gap-3">
+                    <span className="h-px flex-1 bg-slate-800" />
+                    <h2 className="font-mono text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                      Selected File Analysis
+                    </h2>
+                    <span className="h-px flex-1 bg-slate-800" />
+                  </div>
+
+                  {/* Two-column on large screens: overview left, IBM Bob right */}
+                  <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
+                    {/* File overview metrics (left, wider) */}
+                    <div className="lg:col-span-3">
+                      <FileDetail file={selectedFile} />
+                    </div>
+
+                    {/* IBM Bob explanation panel (right, narrower) */}
+                    <div className="lg:col-span-2">
+                      <div className="rounded-xl border border-indigo-500/20 bg-slate-900/60 p-5 h-full flex flex-col">
+                        <div className="mb-4">
+                          <p className="font-mono text-[10px] uppercase tracking-widest text-indigo-400">
+                            Code Health Explanation
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Quick analysis powered by IBM Bob
+                          </p>
+                        </div>
+
+                        <div className="flex-1 text-sm leading-6 text-slate-300">
+                          {isExplaining && (
+                            <div className="flex items-center gap-2 text-indigo-300">
+                              <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-400" />
+                              IBM Bob is analyzing this file&hellip;
+                            </div>
+                          )}
+
+                          {explainError && (
+                            <p className="text-red-400">{explainError}</p>
+                          )}
+
+                          {!isExplaining && !explainError && aiExplanation && (
+                            <div className="space-y-2">
+                              {aiExplanation.explanation
+                                .split(/\n+/)
+                                .filter((line) => line.trim())
+                                .slice(0, 5)
+                                .map((line, index) => (
+                                  <p key={index}>
+                                    &bull; {line.replace(/^[-\u2022*]\s*/, "")}
+                                  </p>
+                                ))}
+                            </div>
+                          )}
+
+                          {!isExplaining && !explainError && !aiExplanation && (
+                            <p className="text-slate-600 text-xs">
+                              Waiting for analysis&hellip;
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="mt-5 border-t border-slate-800 pt-4">
+                          <p className="mb-3 text-xs text-slate-500">
+                            Need a deeper investigation or help refactoring this code?
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleDeepAnalyze}
+                            className="w-full rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-4 py-2.5 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/20"
+                          >
+                            Analyze deeper with IBM Bob &rarr;
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="lg:hidden">
-                  <FileDetail file={selectedFile} />
-                </div>
-                {/* On large screens show a "click to explore" prompt instead */}
-                <div className="hidden lg:flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-700/40 bg-slate-900/20 h-full min-h-[200px] text-center px-8">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-700">
+              ) : (
+                /* Placeholder when no file is selected */
+                <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-700/40 bg-slate-900/20 py-10 text-center px-8">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-700">
                     <circle cx="11" cy="11" r="8" />
                     <path d="m21 21-4.35-4.35" />
                   </svg>
@@ -340,7 +338,16 @@ function handleDeepAnalyze() {
                     Select a file above to view its full analysis
                   </p>
                 </div>
-              </div>
+              )}
+            </section>
+
+            {/* 4. Priority Targets */}
+            <section>
+              <PriorityFiles
+                files={result.files}
+                onSelect={handleSelectFile}
+                selectedId={selectedFile?.id ?? null}
+              />
             </section>
 
           </div>
@@ -348,9 +355,9 @@ function handleDeepAnalyze() {
       </main>
 
       {/* ── Footer ────────────────────────────────────────────────────── */}
-            <footer className="border-t border-slate-800/60 py-5 text-center">
+      <footer className="border-t border-slate-800/60 py-5 text-center">
         <p className="font-mono text-xs text-slate-700">
-          CodePulse · Hackathon build
+          CodePulse &middot; Hackathon build
         </p>
       </footer>
 
@@ -381,7 +388,7 @@ function handleDeepAnalyze() {
                 className="w-full rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-400"
               >
                 {bobPromptCopied
-                  ? "✓ Analysis prompt copied"
+                  ? "\u2713 Analysis prompt copied"
                   : "Copy analysis prompt"}
               </button>
 
@@ -391,7 +398,7 @@ function handleDeepAnalyze() {
                 rel="noopener noreferrer"
                 className="block w-full rounded-lg border border-slate-700 px-4 py-2.5 text-center text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-800"
               >
-                Get IBM Bob ↗
+                Get IBM Bob here;
               </a>
 
               <button
