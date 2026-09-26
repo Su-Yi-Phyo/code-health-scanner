@@ -154,6 +154,7 @@ def explain_with_bob(
     # workspace or spawning sub-agents; it answers from the prompt alone.
     cmd = [
         bob_cmd, "run",
+        "--accept-license",
         "--format", "json",
         "--mode", "ask",
         "--disable-tool-groups", "subagent,mcp",
