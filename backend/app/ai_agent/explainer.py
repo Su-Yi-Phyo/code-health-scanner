@@ -27,7 +27,13 @@ import re
 # Constants
 # ---------------------------------------------------------------------------
 
-MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+# Models tried in order — first one that succeeds is used.
+# All are free on the HF Serverless Inference API (hf-inference provider).
+CANDIDATE_MODELS = [
+    "mistralai/Mistral-7B-Instruct-v0.3",
+    "HuggingFaceH4/zephyr-7b-beta",
+    "microsoft/Phi-3-mini-4k-instruct",
+]
 
 # Source text truncated to this many characters to stay within token budget
 MAX_SOURCE_CHARS = 4_000
@@ -182,20 +188,31 @@ def explain_issues(
     try:
         from huggingface_hub import InferenceClient
 
-        # provider="auto" lets HF pick the best available provider for the model.
-        # This is more reliable than omitting provider, which can route inconsistently.
-        client = InferenceClient(provider="auto", api_key=hf_token)
+        # Use hf-inference provider — available to all free HF tokens.
+        client = InferenceClient(provider="hf-inference", api_key=hf_token)
         messages = _build_messages(file_path, language, source_code, duplicates, dead_code)
 
-        response = client.chat.completions.create(
-            model=MODEL_ID,
-            messages=messages,
-            max_tokens=MAX_NEW_TOKENS,
-        )
-        raw_text: str = response.choices[0].message.content or ""
-        result = _parse_response(raw_text)
-        result["model_used"] = f"Hugging Face / {MODEL_ID}"
-        return result
+        last_exc: Exception | None = None
+        for model_id in CANDIDATE_MODELS:
+            try:
+                response = client.chat.completions.create(
+                    model=model_id,
+                    messages=messages,
+                    max_tokens=MAX_NEW_TOKENS,
+                )
+                raw_text: str = response.choices[0].message.content or ""
+                result = _parse_response(raw_text)
+                result["model_used"] = f"Hugging Face / {model_id}"
+                return result
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                continue
+
+        return {
+            "explanation": f"AI request failed: {last_exc}",
+            "suggestions": [],
+            "model_used": "none",
+        }
 
     except Exception as exc:  # noqa: BLE001
         return {
