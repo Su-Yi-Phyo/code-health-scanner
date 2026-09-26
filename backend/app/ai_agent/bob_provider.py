@@ -132,14 +132,10 @@ def explain_with_bob(
     # --- Availability checks ------------------------------------------------
     api_key = os.environ.get("BOB_API_KEY", "")
 
-    print(f"[BOB DEBUG] BOB_API_KEY present: {bool(api_key)}", flush=True)
-
     if not api_key:
         return {**_FAILURE_TEMPLATE, "explanation": "Bob unavailable: BOB_API_KEY is not set."}
 
     bob_cmd = _find_bob()
-
-    print(f"[BOB DEBUG] Bob executable: {bob_cmd}", flush=True)
 
     if bob_cmd is None:
         return {**_FAILURE_TEMPLATE, "explanation": "Bob unavailable: 'bob' command not found on PATH."}
@@ -170,25 +166,17 @@ def explain_with_bob(
             env=os.environ,   # pass BOB_API_KEY and the rest of the environment
         )
     except subprocess.TimeoutExpired:
-        print("[BOB DEBUG] Bob timed out.", flush=True)
         return {
             **_FAILURE_TEMPLATE,
             "explanation": f"Bob timed out after {BOB_TIMEOUT_SECONDS}s.",
         }
 
     except Exception as exc:  # noqa: BLE001
-        print(
-            f"[BOB DEBUG] Invocation exception: {type(exc).__name__}: {exc}",
-            flush=True,
-        )
         return {
             **_FAILURE_TEMPLATE,
             "explanation": f"Bob invocation error: {exc}",
         }
 
-    print(f"[BOB DEBUG] Return code: {proc.returncode}", flush=True)
-    print(f"[BOB DEBUG] stderr: {(proc.stderr or '')[:500]}", flush=True)
-    print(f"[BOB DEBUG] stdout: {(proc.stdout or '')[:500]}", flush=True)
 
     if proc.returncode != 0:
         stderr_snippet = (proc.stderr or "").strip()[:300]
