@@ -240,3 +240,5 @@ Thumbs.db
 # Temporary repository analysis files
 temp/
 tmp/
+.vercel
+.env*
