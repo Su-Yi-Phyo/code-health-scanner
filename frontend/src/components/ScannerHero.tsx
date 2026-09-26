@@ -7,11 +7,11 @@ interface ScannerHeroProps {
   isScanning: boolean;
 }
 
-const TOOLS = [
-  { label: "AST Analysis", desc: "Abstract syntax tree parsing" },
-  { label: "Radon", desc: "Cyclomatic complexity" },
-  { label: "Ruff", desc: "Fast Python linter" },
-  { label: "Risk Scoring", desc: "Composite health index" },
+const CAPABILITIES = [
+  { label: "Multi-Language Analysis", desc: "Supports Python, TypeScript, JavaScript, Go, and more" },
+  { label: "Duplicate Detection",     desc: "Finds repeated code blocks across your repository" },
+  { label: "Dead Code Detection",     desc: "Identifies unreachable functions, classes, and variables" },
+  { label: "Risk Scoring",            desc: "Composite health score per file, folder, and repository" },
 ];
 
 export default function ScannerHero({ onScan, isScanning }: ScannerHeroProps) {
@@ -23,47 +23,56 @@ export default function ScannerHero({ onScan, isScanning }: ScannerHeroProps) {
   }
 
   return (
-    <section className="relative flex flex-col items-center justify-center px-6 py-20 text-center overflow-hidden">
-      {/* Subtle radial glow behind heading */}
+    <section className="relative flex flex-col items-center justify-center px-6 py-24 text-center overflow-hidden">
+      {/* Radial glow */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(ellipse 70% 40% at 50% 0%, rgba(56,189,248,0.07) 0%, transparent 70%)",
+            "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(99,102,241,0.08) 0%, transparent 70%)",
         }}
       />
 
-      {/* System status badge */}
-      <div className="mb-6 flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/5 px-4 py-1.5">
+      {/* Status badge */}
+      <div className="mb-7 flex items-center gap-2 rounded-full border border-indigo-500/25 bg-indigo-500/8 px-4 py-1.5">
         <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-400" />
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-50" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-400" />
         </span>
-        <span className="font-mono text-xs tracking-widest text-sky-400">
-          SYSTEM READY
+        <span className="font-mono text-xs tracking-widest text-indigo-400">SYSTEM READY</span>
+      </div>
+
+      {/* Wordmark */}
+      <div className="mb-3 flex items-center gap-3">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <circle cx="16" cy="16" r="14" stroke="url(#pulse-grad)" strokeWidth="2" />
+          <circle cx="16" cy="16" r="7" fill="url(#pulse-grad)" fillOpacity="0.15" />
+          <circle cx="16" cy="16" r="3" fill="#818cf8" />
+          <defs>
+            <linearGradient id="pulse-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#818cf8" />
+              <stop offset="1" stopColor="#6366f1" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <span className="font-mono text-3xl font-bold tracking-tight text-slate-100">
+          Code<span className="text-indigo-400">Pulse</span>
         </span>
       </div>
 
-      {/* Main heading */}
-      <h1 className="text-4xl font-bold tracking-tight text-slate-100 sm:text-5xl lg:text-6xl">
-        Python Code{" "}
-        <span className="text-sky-400">Health Scanner</span>
+      {/* Tagline */}
+      <h1 className="text-4xl font-bold tracking-tight text-slate-100 sm:text-5xl">
+        Know Your Codebase.{" "}
+        <span className="text-indigo-400">Fix What Matters.</span>
       </h1>
 
-      <p className="mt-4 max-w-xl text-base text-slate-400 sm:text-lg">
-        Point it at any public GitHub repository. We analyse every{" "}
-        <code className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-sm text-sky-300">
-          .py
-        </code>{" "}
-        file for complexity, lint violations, and structural risk — then rank
-        the files that need attention most.
+      <p className="mt-5 max-w-2xl text-base text-slate-400 sm:text-lg">
+        Analyze any public GitHub repository to uncover duplicate code, dead code,
+        and high-risk areas — from repository level down to individual files.
       </p>
 
       {/* Scan form */}
-      <form
-        onSubmit={handleSubmit}
-        className="mt-10 w-full max-w-xl"
-      >
+      <form onSubmit={handleSubmit} className="mt-10 w-full max-w-2xl">
         <div className="relative flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
             <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-500">
@@ -77,13 +86,13 @@ export default function ScannerHero({ onScan, isScanning }: ScannerHeroProps) {
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://github.com/owner/repository"
               required
-              className="w-full rounded-lg border border-slate-700 bg-slate-900/80 py-3.5 pl-11 pr-4 font-mono text-sm text-slate-200 placeholder-slate-600 outline-none transition focus:border-sky-500 focus:ring-1 focus:ring-sky-500/40"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900/80 py-4 pl-11 pr-4 font-mono text-sm text-slate-200 placeholder-slate-600 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40"
             />
           </div>
           <button
             type="submit"
             disabled={isScanning}
-            className="flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-7 py-3.5 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-8 py-4 text-sm font-bold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isScanning ? (
               <>
@@ -95,29 +104,32 @@ export default function ScannerHero({ onScan, isScanning }: ScannerHeroProps) {
               </>
             ) : (
               <>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.35-4.35" />
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none" />
                 </svg>
-                Start Scan
+                RUN SCAN
               </>
             )}
           </button>
         </div>
+        <p className="mt-2 font-mono text-[11px] text-slate-600">
+          Example: https://github.com/psf/requests
+        </p>
       </form>
 
-      {/* Tool badges */}
+      {/* Capability badges */}
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        {TOOLS.map((t) => (
+        {CAPABILITIES.map((c) => (
           <div
-            key={t.label}
-            title={t.desc}
-            className="flex items-center gap-1.5 rounded-full border border-slate-700/60 bg-slate-800/50 px-3 py-1"
+            key={c.label}
+            title={c.desc}
+            className="flex items-center gap-1.5 rounded-full border border-slate-700/60 bg-slate-800/50 px-3 py-1.5"
           >
-            <svg width="10" height="10" viewBox="0 0 10 10" className="text-sky-400">
-              <circle cx="5" cy="5" r="4" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="1.5" />
+            <svg width="8" height="8" viewBox="0 0 8 8">
+              <circle cx="4" cy="4" r="3" fill="#818cf8" fillOpacity="0.5" />
+              <circle cx="4" cy="4" r="1.5" fill="#818cf8" />
             </svg>
-            <span className="font-mono text-xs text-slate-400">{t.label}</span>
+            <span className="font-mono text-xs text-slate-400">{c.label}</span>
           </div>
         ))}
       </div>

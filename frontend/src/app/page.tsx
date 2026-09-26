@@ -2,32 +2,49 @@
 
 import { useState } from "react";
 import ScannerHero from "@/components/ScannerHero";
-import RepoHealthSummary from "@/components/RepoHealthSummary";
+import RepositoryOverview from "@/components/RepositoryOverview";
+import RepositoryExplorer from "@/components/RepositoryExplorer";
 import PriorityFiles from "@/components/PriorityFiles";
-import RiskBarChart from "@/components/RiskBarChart";
-import ScatterChart from "@/components/ScatterChart";
-import FileTable from "@/components/FileTable";
 import FileDetail from "@/components/FileDetail";
-import { MOCK_FILES, MOCK_SUMMARY, type FileRecord } from "@/lib/mockData";
+import { MOCK_RESULT, type FileRecord } from "@/lib/mockData";
 
-// Scanning states drive the UI flow.
-// Replace "scanning" + "done" side-effects with a real fetch() to the FastAPI
-// backend once the backend is ready.
 type ScanState = "idle" | "scanning" | "done";
+
+// Scanning step labels — match CodePulse capabilities
+const SCAN_STEPS = [
+  "Cloning repository",
+  "Detecting languages",
+  "Finding duplicates",
+  "Detecting dead code",
+  "Scoring risk",
+];
 
 export default function Home() {
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [selectedFile, setSelectedFile] = useState<FileRecord | null>(null);
-  // repoUrl is kept so it can later be passed to the real API call
-  const [, setRepoUrl] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [scanStep, setScanStep] = useState(0);
 
   function handleScan(url: string) {
     setRepoUrl(url);
+    setSelectedFile(null);
     setScanState("scanning");
-    // Simulate a scan delay — replace with: const data = await fetch(`/api/scan?url=${url}`)
+    setScanStep(0);
+
+    // Simulate step-through progress then complete
+    let step = 0;
+    const interval = setInterval(() => {
+      step += 1;
+      setScanStep(step);
+      if (step >= SCAN_STEPS.length - 1) {
+        clearInterval(interval);
+      }
+    }, 400);
+
     setTimeout(() => {
+      clearInterval(interval);
       setScanState("done");
-    }, 1800);
+    }, 2400);
   }
 
   function handleSelectFile(file: FileRecord) {
@@ -37,19 +54,27 @@ export default function Home() {
   const isDone = scanState === "done";
   const isScanning = scanState === "scanning";
 
+  // Use scanned URL or fall back to mock
+  const displayResult = {
+    ...MOCK_RESULT,
+    repositoryUrl: repoUrl || MOCK_RESULT.repositoryUrl,
+  };
+
   return (
-    <div className="scanner-grid min-h-screen">
-      {/* ── Top nav bar ───────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-800/60 bg-slate-950/80 px-6 py-3 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2">
-            <polyline points="16 18 22 12 16 6" />
-            <polyline points="8 6 2 12 8 18" />
+    <div className="scanner-grid min-h-screen flex flex-col">
+      {/* ── Nav bar ──────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-800/60 bg-slate-950/85 px-6 py-3 backdrop-blur">
+        <div className="flex items-center gap-2.5">
+          <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
+            <circle cx="16" cy="16" r="13" stroke="#818cf8" strokeWidth="2" />
+            <circle cx="16" cy="16" r="6" fill="#818cf8" fillOpacity="0.15" />
+            <circle cx="16" cy="16" r="3" fill="#818cf8" />
           </svg>
-          <span className="font-mono text-sm font-semibold text-sky-400">
-            PyHealthScan
+          <span className="font-mono text-sm font-bold text-slate-200 tracking-tight">
+            Code<span className="text-indigo-400">Pulse</span>
           </span>
         </div>
+
         <div className="flex items-center gap-3">
           {isDone && (
             <span className="flex items-center gap-1.5 rounded-full border border-green-500/20 bg-green-500/5 px-3 py-1 font-mono text-xs text-green-400">
@@ -58,88 +83,70 @@ export default function Home() {
             </span>
           )}
           {isScanning && (
-            <span className="flex items-center gap-1.5 rounded-full border border-sky-500/20 bg-sky-500/5 px-3 py-1 font-mono text-xs text-sky-400">
-              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-400" />
+            <span className="flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/5 px-3 py-1 font-mono text-xs text-indigo-400">
+              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
               Scanning…
             </span>
           )}
-          <span className="font-mono text-xs text-slate-700">v0.1.0</span>
+          <span className="font-mono text-xs text-slate-700">v0.2.0</span>
         </div>
       </header>
 
-      {/* ── Main content ──────────────────────────────────────────── */}
-      <main className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6">
+      {/* ── Main ──────────────────────────────────────────────────────── */}
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-20 sm:px-6">
 
-        {/* Hero / Scanner input */}
+        {/* Hero */}
         <ScannerHero onScan={handleScan} isScanning={isScanning} />
 
-        {/* ── Scanning progress indicator ─────────────────────────── */}
+        {/* ── Scanning state ─────────────────────────────────────────── */}
         {isScanning && (
           <div className="mx-auto mb-12 max-w-xl rounded-xl border border-slate-700/50 bg-slate-900/60 p-6">
             <div className="mb-3 flex items-center justify-between">
-              <span className="font-mono text-xs text-slate-400">Analysing repository…</span>
-              <span className="font-mono text-xs text-sky-400">
-                <svg className="inline h-3 w-3 animate-spin mr-1" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a10 10 0 100 10z" />
-                </svg>
-                Running
-              </span>
+              <span className="font-mono text-xs text-slate-400">Analyzing repository…</span>
+              <svg className="h-3 w-3 animate-spin text-indigo-400" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a10 10 0 100 10z" />
+              </svg>
             </div>
-            {/* Animated progress bar */}
-            <div className="h-1 w-full overflow-hidden rounded-full bg-slate-800">
-              <div className="h-full animate-pulse rounded-full bg-sky-500" style={{ width: "60%" }} />
+
+            {/* Animated indeterminate bar */}
+            <div className="h-1 w-full overflow-hidden rounded-full bg-slate-800 mb-4">
+              <div className="h-full rounded-full bg-indigo-500 animate-pulse" style={{ width: "65%" }} />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {["Cloning repo", "AST parsing", "Radon analysis", "Ruff linting"].map((step, i) => (
+
+            {/* Step indicators */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {SCAN_STEPS.map((step, i) => (
                 <div key={step} className="flex items-center gap-1.5">
-                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${i < 2 ? "bg-sky-400" : "bg-slate-700 animate-pulse"}`} />
-                  <span className="font-mono text-[10px] text-slate-500">{step}</span>
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full transition-colors ${
+                      i <= scanStep ? "bg-indigo-400" : "bg-slate-700 animate-pulse"
+                    }`}
+                  />
+                  <span className={`font-mono text-[10px] transition-colors ${i <= scanStep ? "text-slate-400" : "text-slate-600"}`}>
+                    {step}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── Results dashboard ────────────────────────────────────── */}
+        {/* ── Results dashboard ─────────────────────────────────────── */}
         {isDone && (
           <div className="flex flex-col gap-10">
 
-            {/* Repository summary stats */}
+            {/* Repository overview */}
             <section>
-              <RepoHealthSummary summary={MOCK_SUMMARY} />
+              <RepositoryOverview result={displayResult} />
             </section>
 
-            {/* Priority files + File detail side-by-side */}
-            <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <PriorityFiles
-                files={MOCK_FILES}
-                onSelect={handleSelectFile}
-                selectedId={selectedFile?.id ?? null}
-              />
-              <FileDetail file={selectedFile} />
-            </section>
-
-            {/* Charts row */}
-            <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <RiskBarChart
-                files={MOCK_FILES}
-                onSelect={handleSelectFile}
-                selectedId={selectedFile?.id ?? null}
-              />
-              <ScatterChart
-                files={MOCK_FILES}
-                onSelect={handleSelectFile}
-                selectedId={selectedFile?.id ?? null}
-              />
-            </section>
-
-            {/* Full file table + detail panel */}
+            {/* Explorer + File detail — side by side on desktop */}
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
               <div className="xl:col-span-2">
-                <FileTable
-                  files={MOCK_FILES}
-                  onSelect={handleSelectFile}
+                <RepositoryExplorer
+                  result={displayResult}
+                  onSelectFile={handleSelectFile}
                   selectedId={selectedFile?.id ?? null}
                 />
               </div>
@@ -153,14 +160,46 @@ export default function Home() {
               </div>
             </section>
 
+            {/* Priority targets + File detail — for quick mission view */}
+            <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div>
+                <PriorityFiles
+                  files={displayResult.files}
+                  onSelect={handleSelectFile}
+                  selectedId={selectedFile?.id ?? null}
+                />
+              </div>
+              <div>
+                {/* File detail repeats here so it stays next to priority list on tablet */}
+                <div className="mb-4 lg:hidden">
+                  <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
+                    File Detail
+                  </h2>
+                </div>
+                <div className="lg:hidden">
+                  <FileDetail file={selectedFile} />
+                </div>
+                {/* On large screens show a "click to explore" prompt instead */}
+                <div className="hidden lg:flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-700/40 bg-slate-900/20 h-full min-h-[200px] text-center px-8">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-700">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.35-4.35" />
+                  </svg>
+                  <p className="text-xs text-slate-600">
+                    Select a file above to view its full analysis
+                  </p>
+                </div>
+              </div>
+            </section>
+
           </div>
         )}
       </main>
 
-      {/* ── Footer ────────────────────────────────────────────────── */}
+      {/* ── Footer ────────────────────────────────────────────────────── */}
       <footer className="border-t border-slate-800/60 py-5 text-center">
         <p className="font-mono text-xs text-slate-700">
-          Python Code Health Scanner · Hackathon build · Mock data mode
+          CodePulse · Hackathon build · Mock data mode
         </p>
       </footer>
     </div>

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Python Code Health Scanner",
-  description: "Identify Python files in your repository that need attention.",
+  title: "CodePulse — Repository Health Intelligence",
+  description: "Analyze any public GitHub repository to uncover duplicate code, dead code, and high-risk areas — from repository level down to individual files.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
