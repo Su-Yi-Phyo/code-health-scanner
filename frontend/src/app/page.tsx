@@ -6,7 +6,13 @@ import RepositoryOverview from "@/components/RepositoryOverview";
 import RepositoryExplorer from "@/components/RepositoryExplorer";
 import PriorityFiles from "@/components/PriorityFiles";
 import FileDetail from "@/components/FileDetail";
-import { runScan, type ScanResult, type FileRecord } from "@/lib/api";
+import {
+  runScan,
+  explainFile,
+  type ScanResult,
+  type FileRecord,
+  type ExplainResponse,
+} from "@/lib/api";
 
 type ScanState = "idle" | "scanning" | "done";
 
@@ -25,6 +31,13 @@ export default function Home() {
   const [scanStep, setScanStep] = useState(0);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [aiExplanation, setAiExplanation] = useState<ExplainResponse | null>(null);
+  const [isExplaining, setIsExplaining] = useState(false);
+  const [explainError, setExplainError] =
+    useState<string | null>(null);
+  const [showBobModal, setShowBobModal] = useState(false);
+const [bobPrompt, setBobPrompt] = useState("");
+const [bobPromptCopied, setBobPromptCopied] = useState(false);
 
   async function handleScan(url: string) {
     setSelectedFile(null);
@@ -57,9 +70,74 @@ export default function Home() {
     }
   }
 
-  function handleSelectFile(file: FileRecord) {
-    setSelectedFile((prev) => (prev?.id === file.id ? null : file));
+  async function handleSelectFile(file: FileRecord) {
+  // Clicking the selected file again closes it.
+  if (selectedFile?.id === file.id) {
+    setSelectedFile(null);
+    setAiExplanation(null);
+    setExplainError(null);
+    return;
   }
+
+  setSelectedFile(file);
+  setAiExplanation(null);
+  setExplainError(null);
+
+  if (!result) return;
+
+  setIsExplaining(true);
+
+  try {
+    const explanation = await explainFile(
+      result.repositoryUrl,
+      file.file_path
+    );
+
+    setAiExplanation(explanation);
+  } catch (err: unknown) {
+    setExplainError(
+      err instanceof Error
+        ? err.message
+        : "Unable to generate AI explanation."
+    );
+  } finally {
+    setIsExplaining(false);
+  }
+}
+
+
+function handleDeepAnalyze() {
+  if (!selectedFile || !result) return;
+
+  const duplicateCount = selectedFile.issues.duplicates.length;
+  const deadCodeCount = selectedFile.issues.dead_code.length;
+
+  const prompt = `Please analyze this file more deeply in the context of the full repository.
+
+    Repository: ${result.repositoryUrl}
+    File: ${selectedFile.file_path}
+    Language: ${selectedFile.language}
+    Risk score: ${selectedFile.risk_score}/100
+
+    CodePulse scanner findings:
+    - Duplicate code instances: ${duplicateCount}
+    - Dead code instances: ${deadCodeCount}
+
+    Please inspect this file and its related files in the repository. Explain why these issues matter, identify relevant dependencies or architectural problems, and recommend a safe refactoring approach.`;
+
+      setBobPrompt(prompt);
+      setBobPromptCopied(false);
+      setShowBobModal(true);
+    }
+
+    async function handleCopyBobPrompt() {
+      try {
+        await navigator.clipboard.writeText(bobPrompt);
+        setBobPromptCopied(true);
+      } catch {
+        alert("Unable to copy the Bob prompt.");
+      }
+    }
 
   const isDone = scanState === "done";
   const isScanning = scanState === "scanning";
@@ -175,7 +253,62 @@ export default function Home() {
                   </h2>
                 </div>
                 <FileDetail file={selectedFile} />
-              </div>
+                {selectedFile && (
+  <div className="mt-4 rounded-xl border border-indigo-500/20 bg-slate-900/60 p-5">
+    <div className="mb-4">
+      <p className="font-mono text-[10px] uppercase tracking-widest text-indigo-400">
+        Code Health Explanation
+      </p>
+      <p className="mt-1 text-xs text-slate-600">
+        Quick AI explanation powered by IBM Bob
+      </p>
+    </div>
+
+    <div className="text-sm leading-6 text-slate-300">
+  {isExplaining && (
+    <div className="flex items-center gap-2 text-indigo-300">
+      <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-400" />
+      IBM Bob is analyzing this file...
+    </div>
+  )}
+
+  {explainError && (
+    <p className="text-red-400">
+      {explainError}
+    </p>
+  )}
+
+  {!isExplaining && !explainError && aiExplanation && (
+    <div className="space-y-2">
+      {aiExplanation.explanation
+        .split(/\n+/)
+        .filter((line) => line.trim())
+        .slice(0, 5)
+        .map((line, index) => (
+          <p key={index}>
+            • {line.replace(/^[-•*]\s*/, "")}
+          </p>
+        ))}
+    </div>
+  )}
+</div>
+
+    <div className="mt-5 border-t border-slate-800 pt-4">
+      <p className="mb-3 text-xs text-slate-500">
+        Need a deeper investigation or help refactoring this code?
+      </p>
+
+      <button
+        type="button"
+        onClick={handleDeepAnalyze}
+        className="w-full rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-4 py-2.5 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/20"
+      >
+        Analyze deeper with IBM Bob →
+      </button>
+    </div>
+  </div>
+)}
+                              </div>
             </section>
 
             {/* Priority targets + File detail — for quick mission view */}
@@ -215,11 +348,73 @@ export default function Home() {
       </main>
 
       {/* ── Footer ────────────────────────────────────────────────────── */}
-      <footer className="border-t border-slate-800/60 py-5 text-center">
+            <footer className="border-t border-slate-800/60 py-5 text-center">
         <p className="font-mono text-xs text-slate-700">
           CodePulse · Hackathon build
         </p>
       </footer>
+
+      {/* IBM Bob handoff modal */}
+      {showBobModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+
+            <div className="mb-5">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-indigo-400">
+                IBM Bob
+              </p>
+
+              <h3 className="mt-2 text-lg font-semibold text-slate-100">
+                Continue your investigation
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                CodePulse has prepared the selected file and scanner findings
+                for a deeper repository-level investigation in IBM Bob.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleCopyBobPrompt}
+                className="w-full rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-400"
+              >
+                {bobPromptCopied
+                  ? "✓ Analysis prompt copied"
+                  : "Copy analysis prompt"}
+              </button>
+
+              <a
+                href="https://bob.ibm.com/docs/ide/getting-started/install"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full rounded-lg border border-slate-700 px-4 py-2.5 text-center text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-800"
+              >
+                Get IBM Bob ↗
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setShowBobModal(false)}
+                className="w-full px-4 py-2 text-sm text-slate-500 transition hover:text-slate-300"
+              >
+                Close
+              </button>
+            </div>
+
+            {bobPromptCopied && (
+              <div className="mt-4 rounded-lg border border-green-500/20 bg-green-500/5 p-3">
+                <p className="text-xs leading-5 text-green-400">
+                  Prompt copied. Open your repository in IBM Bob and paste the
+                  prompt to continue the deeper analysis.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
