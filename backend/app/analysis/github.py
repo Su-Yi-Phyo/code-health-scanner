@@ -32,7 +32,7 @@ def get_default_branch(owner: str, repo: str) -> str:
 
     request = Request(
         api_url,
-        headers={"User-Agent": "Python-Code-Health-Scanner"}
+        headers={"User-Agent": "Code-Health-Scanner"}
     )
 
     with urlopen(request, timeout=20) as response:
@@ -63,7 +63,7 @@ def download_repository(repository_url: str) -> str:
 
     request = Request(
         zip_url,
-        headers={"User-Agent": "Python-Code-Health-Scanner"}
+        headers={"User-Agent": "Code-Health-Scanner"}
     )
 
     with urlopen(request, timeout=60) as response:

@@ -1,181 +1,53 @@
 """
-ast_analyzer.py – Phase 1: Python source-file structure extraction.
+ast_analyzer.py — Retained for backwards compatibility only.
 
-Parses a .py file with the standard-library `ast` module (no execution) and
-returns a plain dictionary that can be serialised directly to JSON.
+All language analysis is now handled universally by the scoring_agent
+package (tree-sitter parser + detectors + scorer).  This module is no
+longer called by the main pipeline; it exists solely so that existing
+test_ast_analyzer.py imports do not break.
 
-Schema returned by `analyze_file`:
-{
-    "file_path":   str,
-    "line_count":  int,
-    "syntax_error": str | None,       # non-None when parsing failed
-    "imports":     [
-        {
-            "type":   "import" | "from_import",
-            "module": str,            # "os.path", "pathlib", …
-            "names":  [str],          # imported names / aliases
-            "line":   int,
-        }, …
-    ],
-    "functions":   [ <FunctionInfo>, … ],   # top-level only
-    "classes":     [ <ClassInfo>,    … ],
-}
-
-FunctionInfo:
-{
-    "name":         str,
-    "line_start":   int,
-    "line_end":     int,
-    "decorators":   [str],
-    "nested_functions": [ <FunctionInfo>, … ],
-    "nested_classes":   [ <ClassInfo>,   … ],
-}
-
-ClassInfo:
-{
-    "name":         str,
-    "line_start":   int,
-    "line_end":     int,
-    "decorators":   [str],
-    "methods":      [ <FunctionInfo>, … ],
-    "nested_classes":   [ <ClassInfo>, … ],
-}
+The public function `analyze_file` is kept with the same signature but
+now delegates entirely to the scoring_agent parser layer and returns a
+minimal dict.  The Python-specific fields (imports, functions, classes)
+are no longer populated — use the scoring_agent directly for analysis.
 """
 
-import ast
+import sys
 from pathlib import Path
 
+# Make scoring_agent importable
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-def _decorator_names(node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) -> list[str]:
-    """Return a list of decorator name strings for a function/class node."""
-    names = []
-    for dec in node.decorator_list:
-        if isinstance(dec, ast.Name):
-            names.append(dec.id)
-        elif isinstance(dec, ast.Attribute):
-            names.append(ast.unparse(dec))
-        elif isinstance(dec, ast.Call):
-            names.append(ast.unparse(dec))
-        else:
-            names.append(ast.unparse(dec))
-    return names
+from scoring_agent.parser import parse_file as _parse_file   # noqa: E402
+from analysis.scanner import get_language                     # noqa: E402
 
 
-def _end_line(node: ast.AST) -> int:
-    """Return the last line number of an AST node."""
-    return getattr(node, "end_lineno", node.lineno)
-
-
-def _extract_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> dict:
-    """Recursively build a FunctionInfo dict from a function/async-function node."""
-    nested_functions = []
-    nested_classes = []
-
-    for child in ast.iter_child_nodes(node):
-        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            nested_functions.append(_extract_function(child))
-        elif isinstance(child, ast.ClassDef):
-            nested_classes.append(_extract_class(child))
-
-    return {
-        "name": node.name,
-        "line_start": node.lineno,
-        "line_end": _end_line(node),
-        "decorators": _decorator_names(node),
-        "nested_functions": nested_functions,
-        "nested_classes": nested_classes,
-    }
-
-
-def _extract_class(node: ast.ClassDef) -> dict:
-    """Recursively build a ClassInfo dict from a class node."""
-    methods = []
-    nested_classes = []
-
-    for child in ast.iter_child_nodes(node):
-        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            methods.append(_extract_function(child))
-        elif isinstance(child, ast.ClassDef):
-            nested_classes.append(_extract_class(child))
-
-    return {
-        "name": node.name,
-        "line_start": node.lineno,
-        "line_end": _end_line(node),
-        "decorators": _decorator_names(node),
-        "methods": methods,
-        "nested_classes": nested_classes,
-    }
-
-
-def _extract_imports(tree: ast.Module) -> list[dict]:
-    """Walk top-level import statements and return structured import records."""
-    imports = []
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                imports.append({
-                    "type": "import",
-                    "module": alias.name,
-                    "names": [alias.asname or alias.name],
-                    "line": node.lineno,
-                })
-        elif isinstance(node, ast.ImportFrom):
-            module = node.module or ""
-            names = [alias.asname or alias.name for alias in node.names]
-            imports.append({
-                "type": "from_import",
-                "module": module,
-                "names": names,
-                "line": node.lineno,
-            })
-
-    # Preserve original source order
-    imports.sort(key=lambda i: i["line"])
-    return imports
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-def analyze_file(file_path: str | Path) -> dict:
+def analyze_file(file_path: str | Path, language: str | None = None) -> dict:
     """
-    Analyze a single Python source file and return a structured dictionary.
+    Analyze a single source file and return a minimal structured dictionary.
 
-    Syntax errors are caught and stored in ``result["syntax_error"]`` so that
-    one broken file does not abort an entire repository scan.
+    Language-specific AST extraction (Python imports/functions/classes) has
+    been removed in favour of the universal scoring_agent pipeline.
+
+    Returned schema
+    ---------------
+    {
+        "file_path":    str,
+        "language":     str,
+        "line_count":   int,
+        "parse_error":  str | None,
+    }
     """
     path = Path(file_path)
-    source = path.read_text(encoding="utf-8", errors="replace")
-    line_count = source.count("\n") + (1 if source else 0)
+    if language is None:
+        language = get_language(path)
 
-    result = {
-        "file_path": str(path),
-        "line_count": line_count,
-        "syntax_error": None,
-        "imports": [],
-        "functions": [],
-        "classes": [],
+    pr = _parse_file(path, language)
+    line_count = pr.source.count("\n") + (1 if pr.source else 0)
+
+    return {
+        "file_path":   str(path),
+        "language":    language,
+        "line_count":  line_count,
+        "parse_error": pr.parse_error,
     }
-
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError as exc:
-        result["syntax_error"] = f"{exc.msg} (line {exc.lineno})"
-        return result
-
-    result["imports"] = _extract_imports(tree)
-
-    for node in ast.iter_child_nodes(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            result["functions"].append(_extract_function(node))
-        elif isinstance(node, ast.ClassDef):
-            result["classes"].append(_extract_class(node))
-
-    return result
