@@ -6,7 +6,7 @@ import RepositoryOverview from "@/components/RepositoryOverview";
 import RepositoryExplorer from "@/components/RepositoryExplorer";
 import PriorityFiles from "@/components/PriorityFiles";
 import FileDetail from "@/components/FileDetail";
-import { MOCK_RESULT, type FileRecord } from "@/lib/mockData";
+import { runScan, type ScanResult, type FileRecord } from "@/lib/api";
 
 type ScanState = "idle" | "scanning" | "done";
 
@@ -22,29 +22,39 @@ const SCAN_STEPS = [
 export default function Home() {
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [selectedFile, setSelectedFile] = useState<FileRecord | null>(null);
-  const [repoUrl, setRepoUrl] = useState("");
   const [scanStep, setScanStep] = useState(0);
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  function handleScan(url: string) {
-    setRepoUrl(url);
+  async function handleScan(url: string) {
     setSelectedFile(null);
+    setErrorMsg(null);
+    setResult(null);
     setScanState("scanning");
     setScanStep(0);
 
-    // Simulate step-through progress then complete
+    // Animate step indicators while the real request is in-flight
     let step = 0;
     const interval = setInterval(() => {
-      step += 1;
+      step = Math.min(step + 1, SCAN_STEPS.length - 1);
       setScanStep(step);
-      if (step >= SCAN_STEPS.length - 1) {
-        clearInterval(interval);
-      }
-    }, 400);
+    }, 800);
 
-    setTimeout(() => {
+    try {
+      const data = await runScan(url);
       clearInterval(interval);
+      setScanStep(SCAN_STEPS.length - 1);
+      setResult(data);
       setScanState("done");
-    }, 2400);
+    } catch (err: unknown) {
+      clearInterval(interval);
+      setScanState("idle");
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred. Please try again."
+      );
+    }
   }
 
   function handleSelectFile(file: FileRecord) {
@@ -53,12 +63,6 @@ export default function Home() {
 
   const isDone = scanState === "done";
   const isScanning = scanState === "scanning";
-
-  // Use scanned URL or fall back to mock
-  const displayResult = {
-    ...MOCK_RESULT,
-    repositoryUrl: repoUrl || MOCK_RESULT.repositoryUrl,
-  };
 
   return (
     <div className="scanner-grid min-h-screen flex flex-col">
@@ -98,6 +102,20 @@ export default function Home() {
         {/* Hero */}
         <ScannerHero onScan={handleScan} isScanning={isScanning} />
 
+        {/* ── Error message ──────────────────────────────────────────── */}
+        {errorMsg && (
+          <div className="mx-auto mb-8 max-w-xl rounded-xl border border-red-500/30 bg-red-500/5 px-5 py-4">
+            <div className="flex items-start gap-3">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" className="mt-0.5 shrink-0">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <p className="font-mono text-sm text-red-400">{errorMsg}</p>
+            </div>
+          </div>
+        )}
+
         {/* ── Scanning state ─────────────────────────────────────────── */}
         {isScanning && (
           <div className="mx-auto mb-12 max-w-xl rounded-xl border border-slate-700/50 bg-slate-900/60 p-6">
@@ -133,19 +151,19 @@ export default function Home() {
         )}
 
         {/* ── Results dashboard ─────────────────────────────────────── */}
-        {isDone && (
+        {isDone && result && (
           <div className="flex flex-col gap-10">
 
             {/* Repository overview */}
             <section>
-              <RepositoryOverview result={displayResult} />
+              <RepositoryOverview result={result} />
             </section>
 
             {/* Explorer + File detail — side by side on desktop */}
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
               <div className="xl:col-span-2">
                 <RepositoryExplorer
-                  result={displayResult}
+                  result={result}
                   onSelectFile={handleSelectFile}
                   selectedId={selectedFile?.id ?? null}
                 />
@@ -164,7 +182,7 @@ export default function Home() {
             <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div>
                 <PriorityFiles
-                  files={displayResult.files}
+                  files={result.files}
                   onSelect={handleSelectFile}
                   selectedId={selectedFile?.id ?? null}
                 />
@@ -199,7 +217,7 @@ export default function Home() {
       {/* ── Footer ────────────────────────────────────────────────────── */}
       <footer className="border-t border-slate-800/60 py-5 text-center">
         <p className="font-mono text-xs text-slate-700">
-          CodePulse · Hackathon build · Mock data mode
+          CodePulse · Hackathon build
         </p>
       </footer>
     </div>
