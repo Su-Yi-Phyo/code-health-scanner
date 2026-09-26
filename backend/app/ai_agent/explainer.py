@@ -1,9 +1,11 @@
 """
 explainer.py — AI-powered code explanation and suggestion agent.
 
-Calls Qwen2.5-7B-Instruct via the Hugging Face free serverless Inference API
-to explain code quality problems in plain language and return concrete
-refactoring suggestions.
+Calls a free Hugging Face serverless Inference API model to explain code
+quality problems in plain language and return concrete refactoring suggestions.
+
+Models are tried in order; the first one that responds successfully is used.
+This makes the agent resilient to any single model being unavailable.
 
 Requires HF_API_TOKEN environment variable (free token from
 huggingface.co/settings/tokens).
@@ -180,7 +182,9 @@ def explain_issues(
     try:
         from huggingface_hub import InferenceClient
 
-        client = InferenceClient(api_key=hf_token)
+        # provider="auto" lets HF pick the best available provider for the model.
+        # This is more reliable than omitting provider, which can route inconsistently.
+        client = InferenceClient(provider="auto", api_key=hf_token)
         messages = _build_messages(file_path, language, source_code, duplicates, dead_code)
 
         response = client.chat.completions.create(

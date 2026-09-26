@@ -10,7 +10,7 @@ A **multi-language code health scanner** that analyzes public GitHub repositorie
 - **Duplication detection** — hash-based sliding-window algorithm flags duplicate code blocks across the repository
 - **Dead code detection** — tree-sitter AST analysis identifies functions and classes never referenced elsewhere
 - **Risk scoring** — each file receives a 0–100 risk score; scores roll up to folder and repository level
-- **AI explanation agent** — `POST /explain` fetches any file and returns a plain-language explanation + refactoring suggestions powered by `Qwen2.5-7B-Instruct` via the Hugging Face free Inference API
+- **AI explanation agent** — `POST /explain` fetches any file and returns a plain-language explanation + refactoring suggestions powered by `Qwen/Qwen2.5-7B-Instruct` via the Hugging Face free Inference API
 - **REST API** — FastAPI backend with `POST /analyze` and `POST /explain` endpoints; returns structured JSON
 - **Interactive Swagger UI** — built-in API docs at `/docs`
 
