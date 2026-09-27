@@ -2,7 +2,7 @@
 
 **AI-Powered Code Health Scanner with IBM Bob**
 
-CodePulse analyzes public GitHub repositories, identifies risky Python files, detects maintainability issues such as duplicate and dead code, ranks files by risk, and uses **IBM Bob** to generate AI-powered explanations that help developers understand why a piece of code may be problematic.
+CodePulse analyzes public GitHub repositories, identifies risky source files, detects maintainability issues such as duplicate and dead code in supported files, ranks files by risk, and uses **IBM Bob** to generate AI-powered explanations that help developers understand detected code-health concerns.
 
 🌐 **Live Demo:** https://codepulse-nu-three.vercel.app
 
@@ -36,7 +36,7 @@ A user simply provides a public GitHub repository URL.
 CodePulse then:
 
 1. Retrieves and scans the repository.
-2. Identifies supported Python source files.
+2. Identifies supported source files for code-health analysis.
 3. Performs static code analysis.
 4. Detects duplicate code and potential dead code.
 5. Calculates code-health risk scores.
